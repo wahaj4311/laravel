@@ -16,6 +16,24 @@ pipeline {
     }
 
     stages {
+        stage('Debug Info') {
+            steps {
+                sh '''
+                    echo "=== System Info ==="
+                    whoami
+                    sudo -n true && echo "Sudo access: YES" || echo "Sudo access: NO"
+                    
+                    echo "\\n=== Cache Directories ==="
+                    ls -la ${COMPOSER_CACHE_DIR} || echo "Composer cache not found"
+                    ls -la ${VENDOR_CACHE_DIR} || echo "Vendor cache not found"
+                    
+                    echo "\\n=== Git Info ==="
+                    git branch --show-current
+                    git rev-parse HEAD
+                '''
+            }
+        }
+
         stage('Pre-Setup') {
             steps {
                 script {
