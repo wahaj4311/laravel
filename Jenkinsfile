@@ -128,10 +128,10 @@ pipeline {
             cleanWs()
         }
         success {
-            echo 'Build successful!'
+            echo '✅ Build successful! All stages completed successfully.'
         }
         failure {
-            echo 'Build failed!'
+            echo '❌ Build failed! Check the logs for details.'
         }
     }
 } 
