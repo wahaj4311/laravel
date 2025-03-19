@@ -4,6 +4,7 @@ pipeline {
     environment {
         PHP_VERSION = '8.1'
         COMPOSER_HOME = "${WORKSPACE}/.composer"
+        DEPLOY_PATH = '/var/www/laravel-jenkins'
     }
 
     stages {
@@ -59,9 +60,46 @@ pipeline {
                 branch 'main'
             }
             steps {
-                echo 'Deploying application...'
-                // Add your deployment steps here
-                // Example: sh 'rsync -av --delete ./ /var/www/production/'
+                sh '''
+                    # Create deployment directory if it doesn't exist
+                    sudo mkdir -p ${DEPLOY_PATH}
+                    
+                    # Copy project files
+                    sudo rsync -av --delete \
+                        --exclude='.git' \
+                        --exclude='.env' \
+                        --exclude='storage' \
+                        --exclude='bootstrap/cache' \
+                        ./ ${DEPLOY_PATH}/
+                    
+                    # Copy .env file if it doesn't exist
+                    if [ ! -f "${DEPLOY_PATH}/.env" ]; then
+                        sudo cp .env ${DEPLOY_PATH}/.env
+                    fi
+                    
+                    # Create necessary directories
+                    sudo mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
+                    sudo mkdir -p ${DEPLOY_PATH}/storage/logs
+                    sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
+                    
+                    # Set proper permissions
+                    sudo chown -R www-data:www-data ${DEPLOY_PATH}
+                    sudo chmod -R 755 ${DEPLOY_PATH}
+                    sudo chmod -R 777 ${DEPLOY_PATH}/storage
+                    sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
+                    
+                    # Run Laravel deployment commands
+                    cd ${DEPLOY_PATH}
+                    sudo -u www-data php artisan config:cache
+                    sudo -u www-data php artisan route:cache
+                    sudo -u www-data php artisan view:cache
+                    sudo -u www-data php artisan migrate --force
+                    
+                    # Restart PHP-FPM (if using)
+                    # sudo systemctl restart php8.1-fpm
+                    
+                    echo "Deployment completed successfully!"
+                '''
             }
         }
     }
