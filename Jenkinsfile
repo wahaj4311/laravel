@@ -5,9 +5,26 @@ pipeline {
         PHP_VERSION = '8.1'
         COMPOSER_HOME = "${WORKSPACE}/.composer"
         DEPLOY_PATH = '/var/www/laravel-jenkins'
+        APP_USER = 'jenkins'
+        APP_GROUP = 'jenkins'
     }
 
     stages {
+        stage('Pre-Setup') {
+            steps {
+                script {
+                    // Create deployment directory and set initial permissions
+                    sh '''
+                        if [ ! -d "${DEPLOY_PATH}" ]; then
+                            mkdir -p ${DEPLOY_PATH}
+                            chown ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                            chmod 755 ${DEPLOY_PATH}
+                        fi
+                    '''
+                }
+            }
+        }
+
         stage('Setup') {
             steps {
                 sh 'php -v'
@@ -60,46 +77,44 @@ pipeline {
                 branch 'main'
             }
             steps {
-                sh '''
-                    # Create deployment directory if it doesn't exist
-                    sudo mkdir -p ${DEPLOY_PATH}
-                    
-                    # Copy project files
-                    sudo rsync -av --delete \
-                        --exclude='.git' \
-                        --exclude='.env' \
-                        --exclude='storage' \
-                        --exclude='bootstrap/cache' \
-                        ./ ${DEPLOY_PATH}/
-                    
-                    # Copy .env file if it doesn't exist
-                    if [ ! -f "${DEPLOY_PATH}/.env" ]; then
-                        sudo cp .env ${DEPLOY_PATH}/.env
-                    fi
-                    
-                    # Create necessary directories
-                    sudo mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
-                    sudo mkdir -p ${DEPLOY_PATH}/storage/logs
-                    sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
-                    
-                    # Set proper permissions
-                    sudo chown -R www-data:www-data ${DEPLOY_PATH}
-                    sudo chmod -R 755 ${DEPLOY_PATH}
-                    sudo chmod -R 777 ${DEPLOY_PATH}/storage
-                    sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
-                    
-                    # Run Laravel deployment commands
-                    cd ${DEPLOY_PATH}
-                    sudo -u www-data php artisan config:cache
-                    sudo -u www-data php artisan route:cache
-                    sudo -u www-data php artisan view:cache
-                    sudo -u www-data php artisan migrate --force
-                    
-                    # Restart PHP-FPM (if using)
-                    # sudo systemctl restart php8.1-fpm
-                    
-                    echo "Deployment completed successfully!"
-                '''
+                script {
+                    // Ensure deployment directory exists and has correct permissions
+                    sh '''
+                        # Ensure directories exist with correct permissions
+                        mkdir -p ${DEPLOY_PATH}
+                        mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
+                        mkdir -p ${DEPLOY_PATH}/storage/logs
+                        mkdir -p ${DEPLOY_PATH}/bootstrap/cache
+                        
+                        # Copy project files
+                        rsync -av --delete \
+                            --exclude='.git' \
+                            --exclude='.env' \
+                            --exclude='storage' \
+                            --exclude='bootstrap/cache' \
+                            ./ ${DEPLOY_PATH}/
+                        
+                        # Copy .env file if it doesn't exist
+                        if [ ! -f "${DEPLOY_PATH}/.env" ]; then
+                            cp .env ${DEPLOY_PATH}/.env
+                        fi
+                        
+                        # Set proper permissions
+                        chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                        chmod -R 755 ${DEPLOY_PATH}
+                        chmod -R 777 ${DEPLOY_PATH}/storage
+                        chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
+                        
+                        # Run Laravel deployment commands
+                        cd ${DEPLOY_PATH}
+                        php artisan config:cache
+                        php artisan route:cache
+                        php artisan view:cache
+                        php artisan migrate --force
+                        
+                        echo "Deployment completed successfully!"
+                    '''
+                }
             }
         }
     }
