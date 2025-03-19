@@ -195,38 +195,40 @@ pipeline {
                             sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
                             
                             # Verify rsync is available
-                            if ! command -v rsync &> /dev/null; then
-                                echo "Error: rsync is not installed"
+                            if command -v rsync &> /dev/null; then
+                                echo "rsync found at $(which rsync)"
+                                
+                                # Copy project files with rsync
+                                sudo rsync -av --delete \
+                                    --exclude='.git' \
+                                    --exclude='.env' \
+                                    --exclude='storage' \
+                                    --exclude='bootstrap/cache' \
+                                    ./ ${DEPLOY_PATH}/
+                                
+                                # Copy .env file if it doesn't exist
+                                if [ ! -f "${DEPLOY_PATH}/.env" ]; then
+                                    sudo cp .env ${DEPLOY_PATH}/.env
+                                fi
+                                
+                                # Set proper permissions
+                                sudo chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                                sudo chmod -R 755 ${DEPLOY_PATH}
+                                sudo chmod -R 777 ${DEPLOY_PATH}/storage
+                                sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
+                                
+                                # Run Laravel deployment commands
+                                cd ${DEPLOY_PATH}
+                                php artisan config:cache || true
+                                php artisan route:cache || true
+                                php artisan view:cache || true
+                                php artisan migrate --force || true
+                                
+                                echo "Deployment completed successfully!"
+                            else
+                                echo "Error: rsync command not found"
                                 exit 1
                             fi
-                            
-                            # Copy project files with rsync
-                            sudo rsync -av --delete \
-                                --exclude='.git' \
-                                --exclude='.env' \
-                                --exclude='storage' \
-                                --exclude='bootstrap/cache' \
-                                ./ ${DEPLOY_PATH}/
-                            
-                            # Copy .env file if it doesn't exist
-                            if [ ! -f "${DEPLOY_PATH}/.env" ]; then
-                                sudo cp .env ${DEPLOY_PATH}/.env
-                            fi
-                            
-                            # Set proper permissions
-                            sudo chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
-                            sudo chmod -R 755 ${DEPLOY_PATH}
-                            sudo chmod -R 777 ${DEPLOY_PATH}/storage
-                            sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
-                            
-                            # Run Laravel deployment commands
-                            cd ${DEPLOY_PATH}
-                            php artisan config:cache || true
-                            php artisan route:cache || true
-                            php artisan view:cache || true
-                            php artisan migrate --force || true
-                            
-                            echo "Deployment completed successfully!"
                         '''
                     } catch (Exception e) {
                         echo "Deployment failed: ${e.message}"
