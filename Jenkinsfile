@@ -219,10 +219,24 @@ pipeline {
                                 
                                 # Run Laravel deployment commands
                                 cd ${DEPLOY_PATH}
-                                php artisan config:cache || true
-                                php artisan route:cache || true
-                                php artisan view:cache || true
-                                php artisan migrate --force || true
+                                
+                                echo "Preparing cache directories..."
+                                mkdir -p storage/framework/views
+                                mkdir -p storage/framework/cache
+                                mkdir -p storage/framework/sessions
+                                mkdir -p bootstrap/cache
+                                
+                                echo "Setting cache directory permissions..."
+                                chmod -R 777 storage/framework
+                                chmod -R 777 bootstrap/cache
+                                
+                                echo "Running Laravel cache commands..."
+                                php artisan config:cache || echo "Config cache failed"
+                                php artisan route:cache || echo "Route cache failed"
+                                php artisan view:cache || echo "View cache failed"
+                                
+                                echo "Running database migrations..."
+                                php artisan migrate --force || echo "Migration failed"
                                 
                                 echo "Deployment completed successfully!"
                             else
