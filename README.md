@@ -64,3 +64,42 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+# Laravel Jenkins Practice
+
+A Laravel application with Jenkins CI/CD integration.
+
+## Features
+
+- Automated builds on every commit
+- Complete CI/CD pipeline
+- Laravel 12.x with PHP 8.2
+- SQLite database
+- Modern UI with TailwindCSS
+
+## CI/CD Pipeline
+
+The project includes a complete Jenkins pipeline that:
+1. Sets up the PHP environment
+2. Installs dependencies
+3. Runs code analysis
+4. Executes tests
+5. Builds the application
+6. Deploys to the target environment
+
+Builds are automatically triggered when:
+- New commits are pushed to the repository
+- Pull requests are created or updated
+
+## Development
+
+1. Clone the repository
+2. Copy `.env.example` to `.env`
+3. Run `composer install`
+4. Run `php artisan key:generate`
+5. Run `php artisan migrate`
+6. Run `php artisan serve`
+
+## License
+
+This project is open-sourced software licensed under the MIT license.
