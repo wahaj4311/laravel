@@ -7,6 +7,8 @@ pipeline {
         DEPLOY_PATH = '/var/www/laravel-jenkins'
         APP_USER = 'jenkins'
         APP_GROUP = 'jenkins'
+        COMPOSER_CACHE_DIR = '/var/jenkins_home/composer_cache'
+        VENDOR_CACHE_DIR = '/var/jenkins_home/vendor_cache/laravel'
     }
 
     triggers {
@@ -17,8 +19,12 @@ pipeline {
         stage('Pre-Setup') {
             steps {
                 script {
-                    // Create deployment directory and set initial permissions
+                    // Create cache directories
                     sh '''
+                        mkdir -p ${COMPOSER_CACHE_DIR}
+                        mkdir -p ${VENDOR_CACHE_DIR}
+                        
+                        # Create deployment directory and set permissions
                         if [ ! -d "${DEPLOY_PATH}" ]; then
                             mkdir -p ${DEPLOY_PATH}
                             chown ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
@@ -38,7 +44,25 @@ pipeline {
         
         stage('Install Dependencies') {
             steps {
-                sh 'composer install --no-interaction --prefer-dist'
+                sh '''
+                    # Use cached dependencies if available
+                    if [ -d "${VENDOR_CACHE_DIR}" ]; then
+                        echo "Restoring vendor directory from cache..."
+                        cp -r ${VENDOR_CACHE_DIR} ./vendor
+                    fi
+                    
+                    # Set Composer cache directory
+                    export COMPOSER_CACHE_DIR=${COMPOSER_CACHE_DIR}
+                    
+                    # Install dependencies
+                    composer install --no-interaction --prefer-dist
+                    
+                    # Cache the vendor directory
+                    echo "Caching vendor directory..."
+                    rm -rf ${VENDOR_CACHE_DIR}
+                    cp -r ./vendor ${VENDOR_CACHE_DIR}
+                '''
+                
                 sh 'cp .env.example .env'
                 sh '''
                     mkdir -p database
@@ -125,7 +149,14 @@ pipeline {
     
     post {
         always {
-            cleanWs()
+            cleanWs(
+                deleteDirs: true,
+                patterns: [
+                    [pattern: '**/node_modules/**', type: 'INCLUDE'],
+                    [pattern: '**/vendor/**', type: 'EXCLUDE'],
+                    [pattern: '**/.composer/**', type: 'EXCLUDE']
+                ]
+            )
         }
         success {
             echo '✅ Build successful! All stages completed successfully.'
