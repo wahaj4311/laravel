@@ -126,19 +126,23 @@ pipeline {
         stage('Deploy') {
             when {
                 expression {
-                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD || git name-rev --name-only HEAD', returnStdout: true).trim()
-                    return branchName ==~ /(origin\/)?main|master/
+                    // Get the current branch name from the environment
+                    def gitBranch = sh(script: 'git name-rev --name-only HEAD', returnStdout: true).trim()
+                    echo "Current Git branch/ref: ${gitBranch}"
+                    return gitBranch.contains('main') || gitBranch.contains('master')
                 }
             }
             steps {
                 script {
                     // Print branch info for debugging
                     sh '''
-                        echo "Deploying from branch: $(git rev-parse --abbrev-ref HEAD || git name-rev --name-only HEAD)"
-                        echo "Commit: $(git rev-parse HEAD)"
+                        echo "=== Deployment Info ==="
+                        echo "Git branch/ref: $(git name-rev --name-only HEAD)"
+                        echo "Git commit: $(git rev-parse HEAD)"
+                        echo "Git remote URL: $(git config --get remote.origin.url)"
                     '''
                     
-                    // Rest of the deployment steps...
+                    // Deployment steps
                     sh '''
                         # Ensure directories exist with correct permissions
                         sudo mkdir -p ${DEPLOY_PATH}
