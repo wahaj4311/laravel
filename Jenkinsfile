@@ -198,13 +198,15 @@ pipeline {
                             if command -v rsync &> /dev/null; then
                                 echo "rsync found at $(which rsync)"
                                 
-                                # Copy project files with rsync
-                                sudo rsync -av --delete \
+                                echo "Copying project files..."
+                                # Copy project files with rsync (quiet mode)
+                                sudo rsync -a --quiet --delete \
                                     --exclude='.git' \
                                     --exclude='.env' \
                                     --exclude='storage' \
                                     --exclude='bootstrap/cache' \
                                     ./ ${DEPLOY_PATH}/
+                                echo "Files copied successfully"
                                 
                                 # Copy .env file if it doesn't exist
                                 if [ ! -f "${DEPLOY_PATH}/.env" ]; then
