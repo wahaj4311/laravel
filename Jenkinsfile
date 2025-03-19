@@ -18,7 +18,15 @@ pipeline {
             steps {
                 sh 'composer install --no-interaction --prefer-dist'
                 sh 'cp .env.example .env'
+                sh '''
+                    mkdir -p database
+                    touch database/database.sqlite
+                    chmod -R 777 database
+                    chmod -R 777 storage
+                    chmod -R 777 bootstrap/cache
+                '''
                 sh 'php artisan key:generate'
+                sh 'php artisan migrate:fresh --force'
             }
         }
         
@@ -37,10 +45,12 @@ pipeline {
         
         stage('Build') {
             steps {
-                sh 'php artisan config:clear'
-                sh 'php artisan cache:clear'
-                sh 'php artisan route:clear'
-                sh 'php artisan view:clear'
+                sh '''
+                    php artisan config:clear
+                    php artisan cache:clear
+                    php artisan route:clear
+                    php artisan view:clear
+                '''
             }
         }
         
