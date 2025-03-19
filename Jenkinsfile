@@ -19,16 +19,21 @@ pipeline {
         stage('Pre-Setup') {
             steps {
                 script {
-                    // Create cache directories
+                    // Create cache directories with proper permissions
                     sh '''
-                        mkdir -p ${COMPOSER_CACHE_DIR}
-                        mkdir -p ${VENDOR_CACHE_DIR}
+                        # Ensure cache directories exist with proper permissions
+                        sudo mkdir -p ${COMPOSER_CACHE_DIR}
+                        sudo mkdir -p ${VENDOR_CACHE_DIR}
+                        sudo chown -R jenkins:jenkins ${COMPOSER_CACHE_DIR}
+                        sudo chown -R jenkins:jenkins ${VENDOR_CACHE_DIR}
+                        sudo chmod -R 755 ${COMPOSER_CACHE_DIR}
+                        sudo chmod -R 755 ${VENDOR_CACHE_DIR}
                         
                         # Create deployment directory and set permissions
                         if [ ! -d "${DEPLOY_PATH}" ]; then
-                            mkdir -p ${DEPLOY_PATH}
-                            chown ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
-                            chmod 755 ${DEPLOY_PATH}
+                            sudo mkdir -p ${DEPLOY_PATH}
+                            sudo chown ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                            sudo chmod 755 ${DEPLOY_PATH}
                         fi
                     '''
                 }
@@ -102,20 +107,25 @@ pipeline {
         
         stage('Deploy') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                    branch pattern: "origin/main", comparator: "EQUALS"
+                    branch pattern: "origin/master", comparator: "EQUALS"
+                }
             }
             steps {
                 script {
                     // Ensure deployment directory exists and has correct permissions
                     sh '''
                         # Ensure directories exist with correct permissions
-                        mkdir -p ${DEPLOY_PATH}
-                        mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
-                        mkdir -p ${DEPLOY_PATH}/storage/logs
-                        mkdir -p ${DEPLOY_PATH}/bootstrap/cache
+                        sudo mkdir -p ${DEPLOY_PATH}
+                        sudo mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
+                        sudo mkdir -p ${DEPLOY_PATH}/storage/logs
+                        sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
                         
                         # Copy project files
-                        rsync -av --delete \
+                        sudo rsync -av --delete \
                             --exclude='.git' \
                             --exclude='.env' \
                             --exclude='storage' \
@@ -124,14 +134,14 @@ pipeline {
                         
                         # Copy .env file if it doesn't exist
                         if [ ! -f "${DEPLOY_PATH}/.env" ]; then
-                            cp .env ${DEPLOY_PATH}/.env
+                            sudo cp .env ${DEPLOY_PATH}/.env
                         fi
                         
                         # Set proper permissions
-                        chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
-                        chmod -R 755 ${DEPLOY_PATH}
-                        chmod -R 777 ${DEPLOY_PATH}/storage
-                        chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
+                        sudo chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                        sudo chmod -R 755 ${DEPLOY_PATH}
+                        sudo chmod -R 777 ${DEPLOY_PATH}/storage
+                        sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
                         
                         # Run Laravel deployment commands
                         cd ${DEPLOY_PATH}
@@ -154,7 +164,9 @@ pipeline {
                 patterns: [
                     [pattern: '**/node_modules/**', type: 'INCLUDE'],
                     [pattern: '**/vendor/**', type: 'EXCLUDE'],
-                    [pattern: '**/.composer/**', type: 'EXCLUDE']
+                    [pattern: '**/.composer/**', type: 'EXCLUDE'],
+                    [pattern: '**/storage/**', type: 'EXCLUDE'],
+                    [pattern: '**/bootstrap/cache/**', type: 'EXCLUDE']
                 ]
             )
         }
