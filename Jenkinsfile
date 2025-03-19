@@ -125,16 +125,20 @@ pipeline {
         
         stage('Deploy') {
             when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                    branch pattern: "origin/main", comparator: "EQUALS"
-                    branch pattern: "origin/master", comparator: "EQUALS"
+                expression {
+                    def branchName = sh(script: 'git rev-parse --abbrev-ref HEAD || git name-rev --name-only HEAD', returnStdout: true).trim()
+                    return branchName ==~ /(origin\/)?main|master/
                 }
             }
             steps {
                 script {
-                    // Ensure deployment directory exists and has correct permissions
+                    // Print branch info for debugging
+                    sh '''
+                        echo "Deploying from branch: $(git rev-parse --abbrev-ref HEAD || git name-rev --name-only HEAD)"
+                        echo "Commit: $(git rev-parse HEAD)"
+                    '''
+                    
+                    // Rest of the deployment steps...
                     sh '''
                         # Ensure directories exist with correct permissions
                         sudo mkdir -p ${DEPLOY_PATH}
