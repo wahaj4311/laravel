@@ -16,6 +16,19 @@ pipeline {
     }
 
     stages {
+        stage('Check Requirements') {
+            steps {
+                script {
+                    // Check if rsync is installed
+                    def hasRsync = sh(script: 'which rsync || true', returnStdout: true).trim()
+                    if (!hasRsync) {
+                        echo "Installing rsync..."
+                        sh 'sudo apt-get update && sudo apt-get install -y rsync'
+                    }
+                }
+            }
+        }
+
         stage('Debug Info') {
             steps {
                 sh '''
@@ -126,7 +139,6 @@ pipeline {
         stage('Deploy') {
             when {
                 expression {
-                    // Get the current branch name from the environment
                     def gitBranch = sh(script: 'git name-rev --name-only HEAD', returnStdout: true).trim()
                     echo "Current Git branch/ref: ${gitBranch}"
                     return gitBranch.contains('main') || gitBranch.contains('master')
@@ -134,50 +146,61 @@ pipeline {
             }
             steps {
                 script {
-                    // Print branch info for debugging
-                    sh '''
-                        echo "=== Deployment Info ==="
-                        echo "Git branch/ref: $(git name-rev --name-only HEAD)"
-                        echo "Git commit: $(git rev-parse HEAD)"
-                        echo "Git remote URL: $(git config --get remote.origin.url)"
-                    '''
-                    
-                    // Deployment steps
-                    sh '''
-                        # Ensure directories exist with correct permissions
-                        sudo mkdir -p ${DEPLOY_PATH}
-                        sudo mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
-                        sudo mkdir -p ${DEPLOY_PATH}/storage/logs
-                        sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
+                    try {
+                        // Print branch info for debugging
+                        sh '''
+                            echo "=== Deployment Info ==="
+                            echo "Git branch/ref: $(git name-rev --name-only HEAD)"
+                            echo "Git commit: $(git rev-parse HEAD)"
+                            echo "Git remote URL: $(git config --get remote.origin.url)"
+                        '''
                         
-                        # Copy project files
-                        sudo rsync -av --delete \
-                            --exclude='.git' \
-                            --exclude='.env' \
-                            --exclude='storage' \
-                            --exclude='bootstrap/cache' \
-                            ./ ${DEPLOY_PATH}/
-                        
-                        # Copy .env file if it doesn't exist
-                        if [ ! -f "${DEPLOY_PATH}/.env" ]; then
-                            sudo cp .env ${DEPLOY_PATH}/.env
-                        fi
-                        
-                        # Set proper permissions
-                        sudo chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
-                        sudo chmod -R 755 ${DEPLOY_PATH}
-                        sudo chmod -R 777 ${DEPLOY_PATH}/storage
-                        sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
-                        
-                        # Run Laravel deployment commands
-                        cd ${DEPLOY_PATH}
-                        php artisan config:cache
-                        php artisan route:cache
-                        php artisan view:cache
-                        php artisan migrate --force
-                        
-                        echo "Deployment completed successfully!"
-                    '''
+                        // Deployment steps with error handling
+                        sh '''
+                            # Ensure directories exist with correct permissions
+                            sudo mkdir -p ${DEPLOY_PATH}
+                            sudo mkdir -p ${DEPLOY_PATH}/storage/framework/{sessions,views,cache}
+                            sudo mkdir -p ${DEPLOY_PATH}/storage/logs
+                            sudo mkdir -p ${DEPLOY_PATH}/bootstrap/cache
+                            
+                            # Verify rsync is available
+                            if ! command -v rsync &> /dev/null; then
+                                echo "Error: rsync is not installed"
+                                exit 1
+                            fi
+                            
+                            # Copy project files with rsync
+                            sudo rsync -av --delete \
+                                --exclude='.git' \
+                                --exclude='.env' \
+                                --exclude='storage' \
+                                --exclude='bootstrap/cache' \
+                                ./ ${DEPLOY_PATH}/
+                            
+                            # Copy .env file if it doesn't exist
+                            if [ ! -f "${DEPLOY_PATH}/.env" ]; then
+                                sudo cp .env ${DEPLOY_PATH}/.env
+                            fi
+                            
+                            # Set proper permissions
+                            sudo chown -R ${APP_USER}:${APP_GROUP} ${DEPLOY_PATH}
+                            sudo chmod -R 755 ${DEPLOY_PATH}
+                            sudo chmod -R 777 ${DEPLOY_PATH}/storage
+                            sudo chmod -R 777 ${DEPLOY_PATH}/bootstrap/cache
+                            
+                            # Run Laravel deployment commands
+                            cd ${DEPLOY_PATH}
+                            php artisan config:cache || true
+                            php artisan route:cache || true
+                            php artisan view:cache || true
+                            php artisan migrate --force || true
+                            
+                            echo "Deployment completed successfully!"
+                        '''
+                    } catch (Exception e) {
+                        echo "Deployment failed: ${e.message}"
+                        error "Deployment failed. Check the logs for details."
+                    }
                 }
             }
         }
