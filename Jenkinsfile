@@ -19,12 +19,43 @@ pipeline {
         stage('Check Requirements') {
             steps {
                 script {
-                    // Check if rsync is installed
-                    def hasRsync = sh(script: 'which rsync || true', returnStdout: true).trim()
-                    if (!hasRsync) {
-                        echo "Installing rsync..."
-                        sh 'sudo apt-get update && sudo apt-get install -y rsync'
-                    }
+                    // Print system information
+                    sh '''
+                        echo "=== System Information ==="
+                        cat /etc/os-release || echo "No OS release info found"
+                        echo "\nPackage managers:"
+                        which apt 2>/dev/null && echo "apt found" || echo "apt not found"
+                        which apk 2>/dev/null && echo "apk found" || echo "apk not found"
+                        which yum 2>/dev/null && echo "yum found" || echo "yum not found"
+                        
+                        echo "\nCurrent PATH:"
+                        echo $PATH
+                        
+                        echo "\nrsync status:"
+                        which rsync 2>/dev/null && echo "rsync is installed" || echo "rsync not found"
+                    '''
+                    
+                    // Try to install rsync using available package manager
+                    sh '''
+                        if ! command -v rsync &> /dev/null; then
+                            echo "Installing rsync..."
+                            if command -v apt &> /dev/null; then
+                                sudo apt-get update && sudo apt-get install -y rsync
+                            elif command -v apk &> /dev/null; then
+                                sudo apk add --no-cache rsync
+                            elif command -v yum &> /dev/null; then
+                                sudo yum install -y rsync
+                            else
+                                echo "No supported package manager found"
+                                exit 1
+                            fi
+                        fi
+                        
+                        # Verify installation
+                        echo "\nVerifying rsync installation:"
+                        which rsync || echo "rsync not found in PATH"
+                        rsync --version || echo "rsync command not working"
+                    '''
                 }
             }
         }
