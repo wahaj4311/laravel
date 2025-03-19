@@ -9,6 +9,10 @@ pipeline {
         APP_GROUP = 'jenkins'
     }
 
+    triggers {
+        githubPush()
+    }
+
     stages {
         stage('Pre-Setup') {
             steps {
